@@ -1,25 +1,127 @@
 import React, { useState } from 'react';
 
 import { motion } from 'framer-motion';
-
+import { storage } from '../firebase.config';
 import { MdFastfood, MdCloudUpload, MdDelete, MdFoodBank, MdAttachMoney } from 'react-icons/md';
 import { categories } from '../utils/Data';
 import Loader from './Loader';
+import { getDownloadURL, uploadBytesResumable, ref, deleteObject } from 'firebase/storage';
+import { saveItem } from '../utils/firebaseFunctions';
 
 export default function CreateContainer() {
   const [title, setTitle] = useState('');
   const [calories, setCalories] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState(null);
+  const [category, setCategory] = useState("");
   const [imageAsset, setImageAsset] = useState(null);
   const [fields, setFields] = useState(false);
   const [alertStatus, setAlertStatus] = useState('danger');
   const [msg, setMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const uploadImage = () => {}
-  const deleteImage = () => {}
-  const saveDetails = () => {}
+  const uploadImage = (e) => {
+    setIsLoading(true)
+    const imageFile = e.target.files[0]
+    const storageRef = ref(storage, `Images/${Date.now()}-${imageFile.name}`)
+    const uploadTask = uploadBytesResumable(storageRef, imageFile)
+
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const uploadProgress = 
+        (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+      },
+      (error) => {
+        console.log(error)
+        setFields(true)
+        setMsg("error while uploading : try again")
+        setAlertStatus("danger")
+        setTimeout(() => {
+          setFields(false)
+          setIsLoading(false)
+        }, 4000)
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setImageAsset(downloadURL)
+          setIsLoading(false)
+          setFields(true)
+          setMsg("Image uploaded successfully <3")
+          setAlertStatus("success")
+          setTimeout(() => {
+            setFields(false)
+          }, 4000)
+        })
+      }
+    )
+  }
+
+  const deleteImage = () => {
+    setIsLoading(true)
+    const deleteRef = ref(storage, imageAsset)
+    deleteObject(deleteRef).then(() => {
+      setImageAsset(null)
+      setIsLoading(false)
+      setFields(true)
+      setMsg("image deleted successefully")
+      setAlertStatus("success")
+      setTimeout(() => {
+        setFields(false)
+      }, 4000)
+    })
+  }
+
+  const saveDetails = () => {
+    setIsLoading(true)
+    try {
+      if(!title || !calories || !price || !categories || !imageAsset) {
+        setFields(true)
+        setMsg("required fields can't be empty")
+        setAlertStatus("danger")
+        setTimeout(() => {
+          setFields(false)
+          setIsLoading(false)
+        }, 4000)
+      } else {
+        const data = {
+          id : `${Date.now()}`,
+          title: title,
+          imageURL: imageAsset,
+          category: category,
+          calories: calories,
+          qty: 1,
+          price: price,
+        }
+        saveItem(data)
+        setIsLoading(false)
+        setFields(true)
+        setMsg("data uploaded successefully")
+        clearData()
+        setAlertStatus("success")
+        setTimeout(() => {
+          setFields(false)
+        }, 4000)
+      }
+    } catch (error) {
+      console.log(error)
+      setFields(true)
+      setMsg("error while uploading : try again")
+      setAlertStatus("danger")
+      setTimeout(() => {
+        setFields(false)
+        setIsLoading(false)
+      }, 4000)
+    }
+  }
+
+  const clearData = () => {
+    setTitle("")
+    setCalories("")
+    setPrice("")
+    setImageAsset(null)
+    setCategory("")
+    console.log(category)
+  }
 
   return (
     <div className='w-full min-h-screen flex items-center justify-center'>
@@ -54,7 +156,7 @@ export default function CreateContainer() {
           <select 
             onChange={(e)=> setCategory(e.target.value)}
             className='outline-none w-full text-base border-b-2 border-gray-200 p-2 rounded-md cursor-pointer'>
-            <option value="other" className='bg-white'>Select Category</option>
+            <option value={category} className='bg-white'>select category</option>
             {categories && categories.map((item) => (
               <option 
                 key={item.id}
